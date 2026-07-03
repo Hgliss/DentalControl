@@ -3,10 +3,8 @@ using DentalControl.Models.Common;
 
 namespace DentalControl.Models.Entities;
 
-public class Consultation : AuditableEntity
+public class Consultation : BaseEntity
 {
-    public int Id { get; set; }
-
     public int PatientId { get; set; }
 
     public int? TreatmentId { get; set; }
@@ -17,7 +15,7 @@ public class Consultation : AuditableEntity
 
     public string? BloodPressure { get; set; }
 
-    public int? HeartRate { get; set; }
+    public string? HeartRate { get; set; }
 
     public decimal? OxygenSaturation { get; set; }
 

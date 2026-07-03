@@ -2,9 +2,8 @@
 
 namespace DentalControl.Models.Entities;
 
-public class Patient : AuditableEntity
+public class Patient : BaseEntity
 {
-    public int Id { get; set; }
     public string PatientCode { get; set; } = null!;
     public string FirstName { get; set; } = null!;
     public string? MiddleName { get; set; }

@@ -3,10 +3,8 @@ using DentalControl.Models.Catalog;
 
 namespace DentalControl.Models.Entities;
 
-public class Charge : AuditableEntity
+public class Charge : BaseEntity
 {
-    public int Id { get; set; }
-
     public int PatientId { get; set; }
 
     public int? ConsultationId { get; set; }

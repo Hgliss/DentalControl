@@ -3,10 +3,8 @@ using DentalControl.Models.Catalog;
 
 namespace DentalControl.Models.Entities;
 
-public class Prescription : AuditableEntity
+public class Prescription : BaseEntity
 {
-    public int Id { get; set; }
-
     public int ConsultationId { get; set; }
 
     public DateTime PrescriptionDate { get; set; }

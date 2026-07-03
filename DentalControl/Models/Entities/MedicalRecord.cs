@@ -1,9 +1,8 @@
 ﻿using DentalControl.Models.Common;
 namespace DentalControl.Models.Entities;
 
-public class MedicalRecord : AuditableEntity
+public class MedicalRecord : BaseEntity
 {
-    public int Id { get; set; }
     public string MedicalRecordCode { get; set; } = null!;
     public int PatientId { get; set; }
     public string? Allergies { get; set; }

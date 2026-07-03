@@ -3,10 +3,8 @@ using DentalControl.Models.Catalog;
 
 namespace DentalControl.Models.Entities;
 
-public class MedicalCertificate : AuditableEntity
+public class MedicalCertificate : BaseEntity
 {
-    public int Id { get; set; }
-
     public int ConsultationId { get; set; }
 
     public int? TemplateId { get; set; }
