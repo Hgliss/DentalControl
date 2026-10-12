@@ -1,7 +1,11 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 
 namespace DentalControl.Data.Database;
 
+/// <summary>
+/// Define la ubicación y conexión de la base de datos.
+/// </summary>
 public static class DatabaseProvider
 {
     private const string DatabaseFolder = "Database";
@@ -10,14 +14,14 @@ public static class DatabaseProvider
     public static string GetConnectionString()
     {
         var folder = Path.Combine(
-            AppContext.BaseDirectory,
+            Environment.GetFolderPath(
+                Environment.SpecialFolder.LocalApplicationData),
+            "DentalControl",
             DatabaseFolder);
 
         Directory.CreateDirectory(folder);
 
-        var databasePath = Path.Combine(
-            folder,
-            DatabaseName);
+        var databasePath = Path.Combine(folder, DatabaseName);
 
         return $"Data Source={databasePath}";
     }

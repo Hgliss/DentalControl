@@ -50,3 +50,13 @@ packages/
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+
+bin/
+obj/
+.vs/
+
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
