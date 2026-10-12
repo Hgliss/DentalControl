@@ -1,8 +1,10 @@
 ﻿using DentalControl.Models.Common;
-using DentalControl.Models.Catalog;
 
 namespace DentalControl.Models.Entities;
 
+/// <summary>
+/// Representa un cargo por una consulta o tratamiento de un paciente.
+/// </summary>
 public class Charge : BaseEntity
 {
     public int PatientId { get; set; }

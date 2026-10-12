@@ -3,6 +3,9 @@ using DentalControl.Models.Catalog;
 
 namespace DentalControl.Models.Entities;
 
+/// <summary>
+/// Representa un pago recibido de un paciente y los datos de su recibo.
+/// </summary>
 public class Payment : BaseEntity
 {
     public int PatientId { get; set; }
@@ -19,7 +22,7 @@ public class Payment : BaseEntity
 
     public Patient Patient { get; set; } = null!;
 
-    public PaymentMethod PaymentMethod { get; set; } = null!;
+    public CatalogItem PaymentMethod { get; set; } = null!;
 
     public ICollection<PaymentDetail> Details { get; set; } = new List<PaymentDetail>();
 }

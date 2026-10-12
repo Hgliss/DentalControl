@@ -1,7 +1,11 @@
-﻿using DentalControl.Models.Common;
+﻿using DentalControl.Models.Catalog;
+using DentalControl.Models.Common;
 
 namespace DentalControl.Models.Entities;
 
+/// <summary>
+/// Configura la tabla de pacientes, sus columnas y relaciones.
+/// </summary>
 public class Patient : BaseEntity
 {
     public string PatientCode { get; set; } = null!;
@@ -10,14 +14,12 @@ public class Patient : BaseEntity
     public string LastName { get; set; } = null!;
     public string? SecondLastName { get; set; }
     public DateOnly BirthDate { get; set; }
-    public string Gender { get; set; } = null!;
-    public string Phone { get; set; } = null!;
+    public int GenderId { get; set; } 
+    public string? Phone { get; set; } = null!;
     public string? Address { get; set; }
     public string? Cui { get; set; }
     public string? Occupation { get; set; }
     public string? ReferredBy { get; set; }
-
-    public MedicalRecord? MedicalRecord { get; set; }
 
     public ICollection<Treatment> Treatments { get; set; } = new List<Treatment>();
 
@@ -26,4 +28,13 @@ public class Patient : BaseEntity
     public ICollection<Charge> Charges { get; set; } = new List<Charge>();
 
     public ICollection<Payment> Payments { get; set; } = new List<Payment>();
+
+    public ICollection<PatientHistory> Histories { get; set; } = new List<PatientHistory>();
+
+    public ICollection<PatientAllergy> Allergies { get; set; } = new List<PatientAllergy>();
+
+    public ICollection<PatientMedication> Medications { get; set; } = new List<PatientMedication>();
+
+    public ICollection<PatientCondition> Conditions { get; set; } = new List<PatientCondition>();
+    public CatalogItem Gender { get; set; } = null!;
 }

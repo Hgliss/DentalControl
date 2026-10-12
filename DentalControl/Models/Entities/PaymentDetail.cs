@@ -1,13 +1,13 @@
 ﻿using DentalControl.Models.Common;
-using DentalControl.Models.Catalog;
 
 
 namespace DentalControl.Models.Entities;
 
-public class PaymentDetail
+/// <summary>
+/// Representa el importe de un pago aplicado a un cargo.
+/// </summary>
+public class PaymentDetail : BaseEntity
 {
-    public int Id { get; set; }
-
     public int PaymentId { get; set; }
 
     public int ChargeId { get; set; }

@@ -1,8 +1,10 @@
 ﻿using DentalControl.Models.Common;
-using DentalControl.Models.Catalog;
 
 namespace DentalControl.Models.Entities;
 
+/// <summary>
+/// Representa una receta emitida en una consulta.
+/// </summary>
 public class Prescription : BaseEntity
 {
     public int ConsultationId { get; set; }
