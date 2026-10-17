@@ -1,7 +1,10 @@
 ﻿using DentalControl.Data.Context;
 using DentalControl.Data.Database;
+using DentalControl.Data.initialization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using DentalControl.Models.Entities;
+using Microsoft.AspNetCore.Identity;
 
 
 namespace DentalControl.Data;
@@ -15,6 +18,9 @@ public static class DependencyInjection
         {
             options.UseSqlite(DatabaseProvider.GetConnectionString());
         });
+
+        services.AddScoped<DatabaseInitializer>();
+        services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 
         return services;
     }
