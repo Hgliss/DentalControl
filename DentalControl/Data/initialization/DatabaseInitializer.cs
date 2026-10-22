@@ -47,6 +47,22 @@ public class DatabaseInitializer
             _context.Roles.Add(administratorRole);
         }
 
+        var doctorRoleExists = await _context.Roles
+            .AnyAsync(role => role.Name == "Doctor");
+
+                if (!doctorRoleExists)
+                {
+                    var doctorRole = new Role
+                    {
+                        Name = "Doctor",
+                        Description = "Atención clínica y gestión de pacientes.",
+                        Status = "A"
+                    };
+
+                    _context.Roles.Add(doctorRole);
+        }
+
+
         var administratorExists = await _context.Users
             .AnyAsync(user => user.Username == username);
 
@@ -82,6 +98,48 @@ public class DatabaseInitializer
                 _passwordHasher.HashPassword(administrator, password);
 
             _context.Users.Add(administrator);
+        }
+
+        var doctorExists = await _context.Users
+    .AnyAsync(user => user.Username == "doctor");
+
+        if (!doctorExists)
+        {
+            var doctorRole = _context.Roles.Local
+                .SingleOrDefault(role => role.Name == "Doctor")
+                ?? await _context.Roles
+                    .SingleAsync(role => role.Name == "Doctor");
+
+            if (doctorRole.Status != "A")
+            {
+                throw new InvalidOperationException(
+                    "El rol Doctor existe, pero no está activo.");
+            }
+
+            var password = Environment.GetEnvironmentVariable(
+                "DENTALCONTROL_INITIAL_DOCTOR_PASSWORD",
+                EnvironmentVariableTarget.User);
+
+            if (string.IsNullOrWhiteSpace(password) || password.Length < 12)
+            {
+                throw new InvalidOperationException(
+                    "Configura DENTALCONTROL_INITIAL_DOCTOR_PASSWORD " +
+                    "con una contraseña de al menos 12 caracteres.");
+            }
+
+            var doctor = new User
+            {
+                Username = "doctor",
+                FirstName = "Doctor",
+                LastName = "Prueba",
+                Role = doctorRole,
+                Status = "A"
+            };
+
+            doctor.PasswordHash =
+                _passwordHasher.HashPassword(doctor, password);
+
+            _context.Users.Add(doctor);
         }
 
 
