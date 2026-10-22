@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using DentalControl.Models.Entities;
 using Microsoft.AspNetCore.Identity;
+using DentalControl.Services.Authentication;
 
 
 namespace DentalControl.Data;
@@ -21,6 +22,7 @@ public static class DependencyInjection
 
         services.AddScoped<DatabaseInitializer>();
         services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
+        services.AddScoped<AuthenticationService>();
 
         return services;
     }

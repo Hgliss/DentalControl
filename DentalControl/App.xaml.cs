@@ -3,6 +3,8 @@ using System.Windows;
 using DentalControl.Data;
 using DentalControl.Data.Context;
 using DentalControl.Data.initialization;
+using DentalControl.Services.Authentication;
+using DentalControl.Views;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -12,11 +14,12 @@ public partial class App : Application
 {
     private ServiceProvider? _serviceProvider;
 
+    public AuthenticatedUser? CurrentUser { get; private set; }
+
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
-        // Mantiene la aplicación abierta durante la inicialización.
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
         try
@@ -44,12 +47,7 @@ public partial class App : Application
                 await initializer.InitializeAsync();
             }
 
-            var window = new MainWindow();
-
-            MainWindow = window;
-            ShutdownMode = ShutdownMode.OnMainWindowClose;
-
-            window.Show();
+            ShowLogin();
         }
         catch (Exception ex)
         {
@@ -63,10 +61,59 @@ public partial class App : Application
         }
     }
 
+    private void ShowLogin()
+    {
+        if (_serviceProvider is null)
+        {
+            throw new InvalidOperationException(
+                "Los servicios no están inicializados.");
+        }
+
+        var scopeFactory = _serviceProvider
+            .GetRequiredService<IServiceScopeFactory>();
+
+        var loginWindow = new LoginWindow(scopeFactory);
+
+        MainWindow = loginWindow;
+
+        if (loginWindow.ShowDialog() != true ||
+            loginWindow.AuthenticatedUser is null)
+        {
+            Shutdown();
+            return;
+        }
+
+        CurrentUser = loginWindow.AuthenticatedUser;
+
+        var window = new MainWindow();
+
+        MainWindow = window;
+        ShutdownMode = ShutdownMode.OnMainWindowClose;
+
+        window.Show();
+    }
+
     protected override void OnExit(ExitEventArgs e)
     {
+        CurrentUser = null;
         _serviceProvider?.Dispose();
 
         base.OnExit(e);
+    }
+
+    public void Logout()
+    {
+        // Evita cerrar la aplicación mientras cambiamos de ventana.
+        ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
+        CurrentUser = null;
+
+        var currentWindow = MainWindow;
+
+        MainWindow = null;
+
+        currentWindow?.Close();
+
+        ShowLogin();
     }
 }
