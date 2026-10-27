@@ -43,6 +43,8 @@ public partial class LoginWindow : Window
         LoginButton.IsEnabled = false;
         UsernameInput.IsEnabled = false;
         PasswordInput.IsEnabled = false;
+        VisiblePasswordInput.IsEnabled = false;
+        TogglePasswordButton.IsEnabled = false;
         LoginButton.Content = "Ingresando…";
 
         try
@@ -72,11 +74,20 @@ public partial class LoginWindow : Window
         finally
         {
             PasswordInput.Clear();
+            VisiblePasswordInput.Clear();
+
+            PasswordInput.Visibility = Visibility.Visible;
+            VisiblePasswordInput.Visibility = Visibility.Collapsed;
+            TogglePasswordButton.ToolTip = "Mostrar contraseña";
+            System.Windows.Automation.AutomationProperties.SetName(
+                TogglePasswordButton, "Mostrar contraseña");
 
             _isBusy = false;
             LoginButton.IsEnabled = true;
             UsernameInput.IsEnabled = true;
             PasswordInput.IsEnabled = true;
+            VisiblePasswordInput.IsEnabled = true;
+            TogglePasswordButton.IsEnabled = true;
             LoginButton.Content = "Ingresar";
         }
 
