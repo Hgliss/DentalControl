@@ -1,6 +1,14 @@
 ﻿<Window x:Class="DentalControl.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:converters="clr-namespace:DentalControl.Infrastructure.Converters"
+        xmlns:nav="clr-namespace:DentalControl.ViewModels.Navigation"
+        xmlns:home="clr-namespace:DentalControl.ViewModels.Home"
+        xmlns:patients="clr-namespace:DentalControl.ViewModels.Patients"
+        xmlns:payments="clr-namespace:DentalControl.ViewModels.Payments"
+        xmlns:reports="clr-namespace:DentalControl.ViewModels.Reports"
+        xmlns:administration="clr-namespace:DentalControl.ViewModels.Administration"
+        xmlns:views="clr-namespace:DentalControl.Views"
         Title="DentalControl"
         Width="900"
         Height="620"
@@ -15,6 +23,37 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="Styles/Buttons.xaml" />
             </ResourceDictionary.MergedDictionaries>
+            <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+            <converters:ValuesEqualConverter x:Key="ValuesEqualConverter" />
+            <DataTemplate DataType="{x:Type home:HomeViewModel}">
+                <views:HomeView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type patients:PatientsViewModel}">
+                <views:PatientsView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type payments:PaymentsViewModel}">
+                <views:PaymentsView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type reports:ReportsViewModel}">
+                <views:ReportsView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type administration:AdministrationViewModel}">
+                <views:AdministrationView />
+            </DataTemplate>
+            <Style x:Key="NavigationButtonStyle" TargetType="Button"
+                   BasedOn="{StaticResource SidebarButtonStyle}">
+                <Style.Triggers>
+                    <DataTrigger Value="True">
+                        <DataTrigger.Binding>
+                            <MultiBinding Converter="{StaticResource ValuesEqualConverter}">
+                                <Binding Path="SelectedScreen" />
+                                <Binding Path="Tag" RelativeSource="{RelativeSource Self}" />
+                            </MultiBinding>
+                        </DataTrigger.Binding>
+                        <Setter Property="Background" Value="#EAF0FB" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
         </ResourceDictionary>
     </Window.Resources>
 
@@ -48,9 +87,10 @@
                     <StackPanel>
 
                         <Button x:Name="HomeButton"
-                            Style="{StaticResource SidebarButtonStyle}"
-                            Background="#EAF0FB"
-                            Click="HomeButton_Click">
+                            Style="{StaticResource NavigationButtonStyle}"
+                            Tag="{x:Static nav:Screen.Home}"
+                            Command="{Binding NavigateCommand}"
+                            CommandParameter="{x:Static nav:Screen.Home}">
                         <StackPanel Orientation="Horizontal">
                             <Path Data="M0,8 L8,1 L16,8 M3,7 L3,16 L7,16 L7,11 L10,11 L10,16 L14,16 L14,7"
                                   Width="16"
@@ -67,9 +107,11 @@
                     </Button>
 
                     <Button x:Name="PatientsButton"
-                            Style="{StaticResource SidebarButtonStyle}"
+                            Style="{StaticResource NavigationButtonStyle}"
                             Margin="0,8,0,0"
-                            Click="PatientsButton_Click">
+                            Tag="{x:Static nav:Screen.Patients}"
+                            Command="{Binding NavigateCommand}"
+                            CommandParameter="{x:Static nav:Screen.Patients}">
 
                         <StackPanel Orientation="Horizontal">
                             <Path Data="M11,4 A3,3 0 1 1 5,4 A3,3 0 1 1 11,4
@@ -88,9 +130,11 @@
                     </Button>
 
                     <Button x:Name="PaymentsButton"
-                            Style="{StaticResource SidebarButtonStyle}"
+                            Style="{StaticResource NavigationButtonStyle}"
                             Margin="0,8,0,0"
-                            Click="PaymentsButton_Click">
+                            Tag="{x:Static nav:Screen.Payments}"
+                            Command="{Binding NavigateCommand}"
+                            CommandParameter="{x:Static nav:Screen.Payments}">
 
                         <StackPanel Orientation="Horizontal">
                             <Path Data="M1,2 L17,2 L17,14 L1,14 Z M1,6 L17,6 M4,11 L8,11"
@@ -108,9 +152,11 @@
                     </Button>
 
                     <Button x:Name="ReportsButton"
-                            Style="{StaticResource SidebarButtonStyle}"
+                            Style="{StaticResource NavigationButtonStyle}"
                             Margin="0,8,0,0"
-                            Click="ReportsButton_Click">
+                            Tag="{x:Static nav:Screen.Reports}"
+                            Command="{Binding NavigateCommand}"
+                            CommandParameter="{x:Static nav:Screen.Reports}">
 
                         <StackPanel Orientation="Horizontal">
                             <Path Data="M1,0 L1,16 L17,16 M5,12 L5,8 M9,12 L9,4 M13,12 L13,1"
@@ -128,9 +174,12 @@
                     </Button>
 
                     <Button x:Name="AdministrationButton"
-                            Style="{StaticResource SidebarButtonStyle}"
+                            Style="{StaticResource NavigationButtonStyle}"
                             Margin="0,8,0,0"
-                            Click="AdministrationButton_Click">
+                            Visibility="{Binding CanAccessAdministration, Converter={StaticResource BooleanToVisibilityConverter}}"
+                            Tag="{x:Static nav:Screen.Administration}"
+                            Command="{Binding NavigateCommand}"
+                            CommandParameter="{x:Static nav:Screen.Administration}">
 
                         <StackPanel Orientation="Horizontal">
                             <Path Data="M0,4 L16,4 M0,12 L16,12
@@ -153,6 +202,7 @@
 
                 <TextBlock Grid.Row="2"
                            x:Name="WelcomeText"
+                           Text="{Binding WelcomeText}"
                            Margin="0,16,0,0"
                            TextWrapping="Wrap"
                            Foreground="#64748B" />
@@ -175,9 +225,10 @@
                     Background="#EAF0FB"
                     FontSize="13"
                     FontWeight="Medium"
-                    Click="LogoutButton_Click" />
+                    Command="{Binding LogoutCommand}" />
 
             <ContentControl x:Name="MainContent"
+                            Content="{Binding CurrentViewModel}"
                             Grid.Row="1" />
         </Grid>
     </Grid>

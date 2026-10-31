@@ -1,22 +1,21 @@
 ﻿using System.ComponentModel;
 using System.Windows;
 using DentalControl.Services.Authentication;
-using Microsoft.Extensions.DependencyInjection;
+using DentalControl.ViewModels.Authentication;
 
 namespace DentalControl.Views;
 
 public partial class LoginWindow : Window
 {
-    private readonly IServiceScopeFactory _scopeFactory;
-    private bool _isBusy;
+    private readonly LoginViewModel _viewModel;
 
     public AuthenticatedUser? AuthenticatedUser { get; private set; }
 
-    public LoginWindow(IServiceScopeFactory scopeFactory)
+    public LoginWindow(LoginViewModel viewModel)
     {
         InitializeComponent();
-
-        _scopeFactory = scopeFactory;
+        _viewModel = viewModel;
+        DataContext = viewModel;
 
         Loaded += (_, _) => UsernameInput.Focus();
     }
@@ -25,77 +24,31 @@ public partial class LoginWindow : Window
         object sender,
         RoutedEventArgs e)
     {
-        if (_isBusy)
+        if (_viewModel.IsBusy)
         {
             return;
         }
 
-        ErrorText.Text = "";
-
-        if (string.IsNullOrWhiteSpace(UsernameInput.Text) ||
-            string.IsNullOrEmpty(PasswordInput.Password))
-        {
-            ErrorText.Text = "Ingresa tu usuario y contraseña.";
-            return;
-        }
-
-        _isBusy = true;
-        LoginButton.IsEnabled = false;
-        UsernameInput.IsEnabled = false;
-        PasswordInput.IsEnabled = false;
-        VisiblePasswordInput.IsEnabled = false;
-        TogglePasswordButton.IsEnabled = false;
-        LoginButton.Content = "Ingresando…";
+        // La validación sin consulta conserva los campos, como antes.
+        var hasRequiredInput = _viewModel.HasRequiredInput(PasswordInput.Password);
 
         try
         {
-            // Cada intento utiliza un contexto nuevo.
-            using var scope = _scopeFactory.CreateScope();
-
-            var authenticationService = scope.ServiceProvider
-                .GetRequiredService<AuthenticationService>();
-
-            AuthenticatedUser = await authenticationService.LoginAsync(
-                UsernameInput.Text,
-                PasswordInput.Password);
-
-            if (AuthenticatedUser is null)
-            {
-                ErrorText.Text =
-                    "No se pudo iniciar sesión. Verifica tus credenciales " +
-                    "o el estado de tu cuenta.";
-            }
-        }
-        catch (Exception)
-        {
-            ErrorText.Text =
-                "Ocurrió un error al consultar el acceso. Intenta nuevamente.";
+            AuthenticatedUser = await _viewModel.LoginAsync(PasswordInput.Password);
         }
         finally
         {
-            PasswordInput.Clear();
-            VisiblePasswordInput.Clear();
-
-            PasswordInput.Visibility = Visibility.Visible;
-            VisiblePasswordInput.Visibility = Visibility.Collapsed;
-            TogglePasswordButton.ToolTip = "Mostrar contraseña";
-            System.Windows.Automation.AutomationProperties.SetName(
-                TogglePasswordButton, "Mostrar contraseña");
-
-            _isBusy = false;
-            LoginButton.IsEnabled = true;
-            UsernameInput.IsEnabled = true;
-            PasswordInput.IsEnabled = true;
-            VisiblePasswordInput.IsEnabled = true;
-            TogglePasswordButton.IsEnabled = true;
-            LoginButton.Content = "Ingresar";
+            if (hasRequiredInput)
+            {
+                ClearPasswordControls();
+            }
         }
 
         if (AuthenticatedUser is not null)
         {
             DialogResult = true;
         }
-        else
+        else if (hasRequiredInput)
         {
             PasswordInput.Focus();
         }
@@ -104,7 +57,7 @@ public partial class LoginWindow : Window
     protected override void OnClosing(CancelEventArgs e)
     {
         // Espera a que termine la consulta antes de cerrar.
-        if (_isBusy)
+        if (_viewModel.IsBusy)
         {
             e.Cancel = true;
         }
@@ -112,8 +65,31 @@ public partial class LoginWindow : Window
         base.OnClosing(e);
     }
 
+    protected override void OnClosed(EventArgs e)
+    {
+        ClearPasswordControls();
+        base.OnClosed(e);
+    }
+
+    private void ClearPasswordControls()
+    {
+        HidePassword();
+        PasswordInput.Clear();
+    }
+
+    private void HidePassword()
+    {
+        // Ocultar antes de limpiar evita copiar el vacío al PasswordBox desde TextChanged.
+        VisiblePasswordInput.Visibility = Visibility.Collapsed;
+        VisiblePasswordInput.Clear();
+        PasswordInput.Visibility = Visibility.Visible;
+        TogglePasswordButton.ToolTip = "Mostrar contraseña";
+        System.Windows.Automation.AutomationProperties.SetName(
+            TogglePasswordButton, "Mostrar contraseña");
+    }
+
     private void TogglePasswordButton_Click(
-    object sender, RoutedEventArgs e)
+        object sender, RoutedEventArgs e)
     {
         if (PasswordInput.Visibility == Visibility.Visible)
         {
@@ -134,13 +110,7 @@ public partial class LoginWindow : Window
         {
             PasswordInput.Password = VisiblePasswordInput.Text;
 
-            VisiblePasswordInput.Visibility = Visibility.Collapsed;
-            PasswordInput.Visibility = Visibility.Visible;
-
-            TogglePasswordButton.ToolTip = "Mostrar contraseña";
-            System.Windows.Automation.AutomationProperties.SetName(
-                TogglePasswordButton, "Mostrar contraseña");
-
+            HidePassword();
             PasswordInput.Focus();
         }
     }

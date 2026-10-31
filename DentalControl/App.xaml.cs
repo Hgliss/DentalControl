@@ -4,6 +4,7 @@ using DentalControl.Data;
 using DentalControl.Data.Context;
 using DentalControl.Data.initialization;
 using DentalControl.Services.Authentication;
+using DentalControl.ViewModels;
 using DentalControl.Views;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -27,6 +28,7 @@ public partial class App : Application
             var services = new ServiceCollection();
 
             services.AddDataServices();
+            services.AddPresentationServices();
 
             _serviceProvider = services.BuildServiceProvider(
                 new ServiceProviderOptions
@@ -69,10 +71,7 @@ public partial class App : Application
                 "Los servicios no están inicializados.");
         }
 
-        var scopeFactory = _serviceProvider
-            .GetRequiredService<IServiceScopeFactory>();
-
-        var loginWindow = new LoginWindow(scopeFactory);
+        var loginWindow = _serviceProvider.GetRequiredService<LoginWindow>();
 
         MainWindow = loginWindow;
 
@@ -85,7 +84,12 @@ public partial class App : Application
 
         CurrentUser = loginWindow.AuthenticatedUser;
 
-        var window = new MainWindow();
+        var viewModel = ActivatorUtilities.CreateInstance<MainWindowViewModel>(
+            _serviceProvider, CurrentUser);
+        var window = new MainWindow(viewModel);
+
+        viewModel.LogoutRequested += OnLogoutRequested;
+        window.Closed += (_, _) => viewModel.LogoutRequested -= OnLogoutRequested;
 
         MainWindow = window;
         ShutdownMode = ShutdownMode.OnMainWindowClose;
@@ -116,4 +120,6 @@ public partial class App : Application
 
         ShowLogin();
     }
+
+    private void OnLogoutRequested(object? sender, EventArgs e) => Logout();
 }
