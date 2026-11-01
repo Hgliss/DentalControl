@@ -1,8 +1,13 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using DentalControl;
+using DentalControl.Data;
+using DentalControl.Data.Context;
 using DentalControl.Infrastructure.Converters;
-using DentalControl.Services.Authentication;
-using DentalControl.Services.Dialogs;
+using DentalControl.Services.Implemetations.Catalog;
+using DentalControl.Services.Interface.Catalog;
+using DentalControl.Services.Implemetations.Authentication;
+using DentalControl.Services.Interface.Authentication;
+using DentalControl.Services.Interface.Dialogs;
 using DentalControl.ViewModels;
 using DentalControl.ViewModels.Administration;
 using DentalControl.ViewModels.Authentication;
@@ -68,7 +73,7 @@ Check(vm.ErrorMessage == "" && vm.CanEdit, "Éxito limpia el error y termina el 
 Check(!typeof(LoginViewModel).GetProperties().Any(p => p.Name.Contains("Password", StringComparison.OrdinalIgnoreCase)),
     "La contraseña no es una propiedad del ViewModel");
 
-using var services = new ServiceCollection().AddPresentationServices()
+using var services = new ServiceCollection().AddDataServices().AddPresentationServices()
     .BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
 Check(!ReferenceEquals(services.GetRequiredService<LoginViewModel>(), services.GetRequiredService<LoginViewModel>()),
     "Cada login obtiene un ViewModel nuevo");
@@ -126,6 +131,40 @@ Check(!(bool)converter.Convert([Screen.Home, Screen.Patients], typeof(bool), nul
     "Sin resaltado para las otras opciones");
 Check(!(bool)converter.Convert([DependencyProperty.UnsetValue, Screen.Home], typeof(bool), null!, CultureInfo.InvariantCulture),
     "Binding pendiente no produce una selección falsa");
+
+// Estas guardas deben resolverse antes de construir un contexto o consultar SQLite.
+var catalogContextRequested = false;
+using var catalogGuardProvider = new ServiceCollection()
+    .AddScoped<AppDbContext>(_ =>
+    {
+        catalogContextRequested = true;
+        throw new InvalidOperationException("Esta comprobación no permite acceder al contexto.");
+    })
+    .AddSingleton<ICatalogService, CatalogService>()
+    .BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
+var catalog = catalogGuardProvider.GetRequiredService<ICatalogService>();
+
+async Task<bool> RejectsCategoryAsync(Func<Task> operation)
+{
+    try
+    {
+        await operation();
+        return false;
+    }
+    catch (ArgumentException)
+    {
+        return true;
+    }
+}
+
+Check(!await catalog.IsActiveItemAsync(0, "GENDER"), "Catálogo rechaza identificador cero");
+Check(!await catalog.IsActiveItemAsync(-1, "GENDER"), "Catálogo rechaza identificador negativo");
+Check(await RejectsCategoryAsync(() => catalog.GetActiveItemsAsync(null!)), "Consulta rechaza categoría nula");
+Check(await RejectsCategoryAsync(() => catalog.GetActiveItemsAsync("   ")), "Consulta rechaza categoría vacía");
+Check(await RejectsCategoryAsync(() => catalog.IsActiveItemAsync(1, null!)), "Validación rechaza categoría nula");
+Check(await RejectsCategoryAsync(() => catalog.IsActiveItemAsync(1, "   ")), "Validación rechaza categoría vacía");
+Check(!catalogContextRequested, "Entradas inválidas no solicitan contexto ni acceden a SQLite");
+Check(services.GetRequiredService<ICatalogService>() is CatalogService, "Servicio de catálogo registrado en la composición");
 
 Console.WriteLine($"Verificación completada: {checks} comprobaciones. Sin abrir DentalControl ni acceder a SQLite.");
 

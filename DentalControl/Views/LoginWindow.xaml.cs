@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel;
 using System.Windows;
-using DentalControl.Services.Authentication;
+using DentalControl.Services.Implemetations.Authentication;
 using DentalControl.ViewModels.Authentication;
 
 namespace DentalControl.Views;
