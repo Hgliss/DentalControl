@@ -1,6 +1,7 @@
 using System.Windows;
+using DentalControl.Services.Interface.Dialogs;
 
-namespace DentalControl.Services.Dialogs;
+namespace DentalControl.Services.Implemetations.Dialogs;
 
 public sealed class WpfDialogService : IDialogService
 {

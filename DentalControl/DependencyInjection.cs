@@ -1,7 +1,9 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using DentalControl.Infrastructure.Navigation;
-using DentalControl.Services.Authentication;
-using DentalControl.Services.Dialogs;
+using DentalControl.Services.Implemetations.Authentication;
+using DentalControl.Services.Implemetations.Dialogs;
+using DentalControl.Services.Interface.Authentication;
+using DentalControl.Services.Interface.Dialogs;
 using DentalControl.ViewModels.Administration;
 using DentalControl.ViewModels.Authentication;
 using DentalControl.ViewModels.Home;
@@ -11,6 +13,11 @@ using DentalControl.ViewModels.Payments;
 using DentalControl.ViewModels.Reports;
 using DentalControl.Views;
 using Microsoft.Extensions.DependencyInjection;
+using DentalControl.Services.Implemetations.Catalog;
+using DentalControl.Services.Interface.Catalog;
+using DentalControl.Services.Implemetations.Patients;
+using DentalControl.Services.Interface.Patients;
+
 
 namespace DentalControl;
 
@@ -21,6 +28,11 @@ public static class DependencyInjection
     {
         services.AddSingleton<ILoginService, ScopedLoginService>();
         services.AddSingleton<IDialogService, WpfDialogService>();
+        services.AddSingleton<ICatalogService, CatalogService>();
+        services.AddScoped<IPatientBusinessRules, PatientBusinessRules>();
+        services.AddSingleton<IPatientService, PatientService>();
+
+
         services.AddTransient<LoginViewModel>();
         services.AddTransient<LoginWindow>();
         services.AddTransient<HomeViewModel>();
@@ -28,6 +40,7 @@ public static class DependencyInjection
         services.AddTransient<PaymentsViewModel>();
         services.AddTransient<ReportsViewModel>();
         services.AddTransient<AdministrationViewModel>();
+        
 
         // Las fábricas resuelven instancias nuevas, sin conservar estado de otra pantalla o sesión.
         services.AddSingleton<IScreenFactory>(provider => new ScreenFactory(

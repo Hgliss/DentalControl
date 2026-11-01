@@ -1,4 +1,4 @@
-namespace DentalControl.Services.Dialogs;
+namespace DentalControl.Services.Interface.Dialogs;
 
 public interface IDialogService
 {

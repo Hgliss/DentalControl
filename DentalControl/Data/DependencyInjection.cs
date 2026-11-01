@@ -5,7 +5,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using DentalControl.Models.Entities;
 using Microsoft.AspNetCore.Identity;
-using DentalControl.Services.Authentication;
+using DentalControl.Services.Implemetations.Authentication;
+
 
 
 namespace DentalControl.Data;

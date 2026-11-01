@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace DentalControl.Services.Authentication;
+namespace DentalControl.Services.Implemetations.Authentication;
 
 public record AuthenticatedUser
 (

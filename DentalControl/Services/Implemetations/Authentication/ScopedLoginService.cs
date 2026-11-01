@@ -1,6 +1,7 @@
+using DentalControl.Services.Interface.Authentication;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace DentalControl.Services.Authentication;
+namespace DentalControl.Services.Implemetations.Authentication;
 
 public sealed class ScopedLoginService(IServiceScopeFactory scopeFactory) : ILoginService
 {

@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using DentalControl.Data.Database.Common;
 
-namespace DentalControl.Services.Authentication;
+namespace DentalControl.Services.Implemetations.Authentication;
 
 /// <summary>
 /// Valida las credenciales para acceder al sistema.

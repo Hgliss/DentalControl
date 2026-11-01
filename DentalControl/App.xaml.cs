@@ -3,7 +3,7 @@ using System.Windows;
 using DentalControl.Data;
 using DentalControl.Data.Context;
 using DentalControl.Data.initialization;
-using DentalControl.Services.Authentication;
+using DentalControl.Services.Implemetations.Authentication;
 using DentalControl.ViewModels;
 using DentalControl.Views;
 using Microsoft.EntityFrameworkCore;
