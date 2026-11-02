@@ -14,8 +14,9 @@ namespace DentalControl;
 public partial class App : Application
 {
     private ServiceProvider? _serviceProvider;
+    private UserSession? _userSession;
 
-    public AuthenticatedUser? CurrentUser { get; private set; }
+    public AuthenticatedUser? CurrentUser => _userSession?.User;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -35,6 +36,8 @@ public partial class App : Application
                 {
                     ValidateScopes = true
                 });
+
+            _userSession = _serviceProvider.GetRequiredService<UserSession>();
 
             using (var scope = _serviceProvider.CreateScope())
             {
@@ -65,7 +68,7 @@ public partial class App : Application
 
     private void ShowLogin()
     {
-        if (_serviceProvider is null)
+        if (_serviceProvider is null || _userSession is null)
         {
             throw new InvalidOperationException(
                 "Los servicios no están inicializados.");
@@ -82,10 +85,11 @@ public partial class App : Application
             return;
         }
 
-        CurrentUser = loginWindow.AuthenticatedUser;
+        var user = loginWindow.AuthenticatedUser;
+        _userSession.SetUser(user);
 
         var viewModel = ActivatorUtilities.CreateInstance<MainWindowViewModel>(
-            _serviceProvider, CurrentUser);
+            _serviceProvider, user);
         var window = new MainWindow(viewModel);
 
         viewModel.LogoutRequested += OnLogoutRequested;
@@ -99,7 +103,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
-        CurrentUser = null;
+        _userSession?.Clear();
         _serviceProvider?.Dispose();
 
         base.OnExit(e);
@@ -110,7 +114,7 @@ public partial class App : Application
         // Evita cerrar la aplicación mientras cambiamos de ventana.
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
-        CurrentUser = null;
+        _userSession?.Clear();
 
         var currentWindow = MainWindow;
 

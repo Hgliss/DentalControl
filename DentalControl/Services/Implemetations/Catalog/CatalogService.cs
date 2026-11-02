@@ -17,8 +17,9 @@ public sealed class CatalogService : ICatalogService
         _scopeFactory = scopeFactory;
     }
 
-    public async Task<IReadOnlyList<CatalogItem>> GetActiveItemsAsync(string categoryCode)
+    public async Task<IReadOnlyList<CatalogItem>> GetActiveItemsAsync(string categoryCode, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         ArgumentException.ThrowIfNullOrWhiteSpace(categoryCode);
 
         // El contexto pertenece a esta operación, no a toda la vida de la pantalla.
@@ -30,11 +31,12 @@ public sealed class CatalogService : ICatalogService
             .OrderBy(item => item.OrderIndex ?? int.MaxValue)
             .ThenBy(item => item.Name)
             .ThenBy(item => item.Id)
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
     }
 
-    public async Task<bool> IsActiveItemAsync(int itemId, string categoryCode)
+    public async Task<bool> IsActiveItemAsync(int itemId, string categoryCode, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         ArgumentException.ThrowIfNullOrWhiteSpace(categoryCode);
 
         if (itemId <= 0)
@@ -46,7 +48,7 @@ public sealed class CatalogService : ICatalogService
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         return await GetActiveItemsQuery(context, categoryCode.Trim())
-            .AnyAsync(item => item.Id == itemId);
+            .AnyAsync(item => item.Id == itemId, cancellationToken);
     }
 
     // Una sola definición para que consultar y validar apliquen las mismas reglas.

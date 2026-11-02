@@ -6,6 +6,8 @@ using DentalControl.Services.Interface.Authentication;
 using DentalControl.Services.Interface.Dialogs;
 using DentalControl.Services.Implemetations.Catalog;
 using DentalControl.Services.Interface.Catalog;
+using DentalControl.Services.Implemetations.Patients;
+using DentalControl.Services.Interface.Patients;
 using DentalControl.ViewModels.Administration;
 using DentalControl.ViewModels.Authentication;
 using DentalControl.ViewModels.Home;
@@ -25,8 +27,12 @@ public static class DependencyInjection
     public static IServiceCollection AddPresentationServices(this IServiceCollection services)
     {
         services.AddSingleton<ILoginService, ScopedLoginService>();
+        services.AddSingleton<UserSession>();
+        services.AddSingleton<IUserSession>(provider => provider.GetRequiredService<UserSession>());
         services.AddSingleton<IDialogService, WpfDialogService>();
         services.AddSingleton<ICatalogService, CatalogService>();
+        services.AddSingleton<PatientBusinessRules>();
+        services.AddSingleton<IPatientService, PatientService>();
 
 
         services.AddTransient<LoginViewModel>();
