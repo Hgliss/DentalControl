@@ -4,6 +4,12 @@ namespace DentalControl.Services.Interface.Patients;
 
 public interface IPatientService
 {
+    /// <summary>Consulta datos generales y género; devuelve null si no está disponible.</summary>
+    Task<Patient?> GetByIdAsync(int patientId, CancellationToken cancellationToken = default);
+
+    /// <summary>Actualiza los campos editables, conservando código, estado y auditoría de creación.</summary>
+    Task<Patient> UpdateAsync(int patientId, Patient patient, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Registra un paciente y devuelve la entidad guardada con su identificador y código automático.
     /// </summary>

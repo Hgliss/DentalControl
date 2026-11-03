@@ -26,6 +26,75 @@ public sealed class PatientService(
 {
     private const int MaxAttempts = 3;
 
+    public async Task<Patient?> GetByIdAsync(int patientId, CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(patientId, 1);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (userSession.UserId is not int userId || userId <= 0)
+            throw new UnauthorizedAccessException("Debes iniciar sesión para consultar pacientes.");
+        return await Task.Run(async () =>
+        {
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            // Un catálogo desactivado conserva su nombre para la consulta histórica.
+            return await context.Patients.AsNoTracking().Include(patient => patient.Gender)
+                .SingleOrDefaultAsync(patient => patient.Id == patientId && patient.DeletedAt == null &&
+                    (patient.Status == EntityStatus.Active || patient.Status == EntityStatus.Inactive), cancellationToken);
+        }, cancellationToken);
+    }
+
+    public async Task<Patient> UpdateAsync(int patientId, Patient patient, CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(patientId, 1);
+        ArgumentNullException.ThrowIfNull(patient);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (userSession.UserId is not int updatedBy || updatedBy <= 0)
+            throw new UnauthorizedAccessException("Debes iniciar sesión para editar pacientes.");
+        var input = CopyEditableFields(patient);
+        businessRules.Validate(input);
+        return await Task.Run(async () =>
+        {
+            for (var attempt = 1; ; attempt++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                try { return await UpdateAttemptAsync(patientId, input, updatedBy, cancellationToken); }
+                catch (Exception ex) when (IsRetryable(ex))
+                {
+                    if (IsUniqueViolation(ex) && input.Cui is not null &&
+                        await CuiExistsAsync(input.Cui, cancellationToken, patientId))
+                        throw DuplicateCuiError(input.Cui);
+                    if (attempt >= MaxAttempts) throw;
+                    await Task.Delay(TimeSpan.FromMilliseconds(100 * attempt), cancellationToken);
+                }
+            }
+        }, cancellationToken);
+    }
+
+    private async Task<Patient> UpdateAttemptAsync(int patientId, Patient input, int updatedBy, CancellationToken cancellationToken)
+    {
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        var entity = await context.Patients.SingleOrDefaultAsync(patient => patient.Id == patientId &&
+            patient.DeletedAt == null && (patient.Status == EntityStatus.Active || patient.Status == EntityStatus.Inactive), cancellationToken)
+            ?? throw new KeyNotFoundException("El paciente no existe o ya no está disponible.");
+        if (!await catalogService.IsActiveItemAsync(input.GenderId, CategoryCodes.GENDER, cancellationToken))
+            throw new ValidationException(new ValidationResult(
+                "Selecciona un género activo de la categoría GENDER.", [nameof(Patient.GenderId)]), null, input.GenderId);
+        if (input.Cui is not null && await context.Patients.AsNoTracking()
+                .AnyAsync(patient => patient.Cui == input.Cui && patient.Id != patientId, cancellationToken))
+            throw DuplicateCuiError(input.Cui);
+
+        ApplyEditableFields(input, entity);
+        entity.UpdatedAt = DateTime.UtcNow;
+        entity.UpdatedBy = updatedBy;
+        await context.SaveChangesAsync(cancellationToken);
+        await context.Entry(entity).Reference(patient => patient.Gender).LoadAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        await transaction.CommitAsync(cancellationToken);
+        return entity;
+    }
+
     public async Task<(IReadOnlyList<Patient> Items, int TotalCount, int PageNumber)> GetPageAsync(
         int pageNumber = 1,
         int pageSize = 10,
@@ -202,12 +271,13 @@ public sealed class PatientService(
         return entity;
     }
 
-    private async Task<bool> CuiExistsAsync(string cui, CancellationToken cancellationToken)
+    private async Task<bool> CuiExistsAsync(string cui, CancellationToken cancellationToken, int? excludedId = null)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        return await context.Patients.AsNoTracking()
-            .AnyAsync(patient => patient.Cui == cui, cancellationToken);
+        var query = context.Patients.AsNoTracking().Where(patient => patient.Cui == cui);
+        if (excludedId is int id) query = query.Where(patient => patient.Id != id);
+        return await query.AnyAsync(cancellationToken);
     }
 
     private static async Task<string> GenerateCodeAsync(AppDbContext context, CancellationToken cancellationToken)
@@ -235,20 +305,27 @@ public sealed class PatientService(
     }
 
 
-    private static Patient CopyEditableFields(Patient source) => new()
+    private static Patient CopyEditableFields(Patient source)
     {
-        FirstName = source.FirstName?.Trim() ?? string.Empty,
-        MiddleName = NormalizeOptional(source.MiddleName),
-        LastName = source.LastName?.Trim() ?? string.Empty,
-        SecondLastName = NormalizeOptional(source.SecondLastName),
-        BirthDate = source.BirthDate,
-        GenderId = source.GenderId,
-        Phone = NormalizeOptional(source.Phone),
-        Address = NormalizeOptional(source.Address),
-        Cui = NormalizeOptional(source.Cui),
-        Occupation = NormalizeOptional(source.Occupation),
-        ReferredBy = NormalizeOptional(source.ReferredBy)
-    };
+        var target = new Patient();
+        ApplyEditableFields(source, target);
+        return target;
+    }
+
+    private static void ApplyEditableFields(Patient source, Patient target)
+    {
+        target.FirstName = source.FirstName?.Trim() ?? string.Empty;
+        target.MiddleName = NormalizeOptional(source.MiddleName);
+        target.LastName = source.LastName?.Trim() ?? string.Empty;
+        target.SecondLastName = NormalizeOptional(source.SecondLastName);
+        target.BirthDate = source.BirthDate;
+        target.GenderId = source.GenderId;
+        target.Phone = NormalizeOptional(source.Phone);
+        target.Address = NormalizeOptional(source.Address);
+        target.Cui = NormalizeOptional(source.Cui);
+        target.Occupation = NormalizeOptional(source.Occupation);
+        target.ReferredBy = NormalizeOptional(source.ReferredBy);
+    }
 
     private static ValidationException DuplicateCuiError(string cui) => new(
         new ValidationResult("Ya existe un paciente con ese CUI.", [nameof(Patient.Cui)]), null, cui);

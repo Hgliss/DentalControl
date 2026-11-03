@@ -21,6 +21,8 @@ public sealed partial class PatientsViewModel : ObservableObject, INotifyDataErr
     private readonly ObservableCollection<CatalogItem> _genders = new();
     private CancellationTokenSource? _activeOperation;
     private bool _isFormOpen;
+    private bool _isDetailOpen;
+    private int? _editingPatientId;
     private bool _isBusy;
     private bool _isLoadingGenders;
     private bool _isDuplicateCuiPopupOpen;
@@ -43,31 +45,60 @@ public sealed partial class PatientsViewModel : ObservableObject, INotifyDataErr
     [ObservableProperty] private string _occupation = string.Empty;
     [ObservableProperty] private string _referredBy = string.Empty;
 
-    public PatientsViewModel(IPatientService patientService, ICatalogService catalogService, PatientListViewModel list)
+    public PatientsViewModel(IPatientService patientService, ICatalogService catalogService, PatientListViewModel list,
+        PatientDetailViewModel detail)
     {
         ArgumentNullException.ThrowIfNull(patientService);
         ArgumentNullException.ThrowIfNull(catalogService);
         ArgumentNullException.ThrowIfNull(list);
+        ArgumentNullException.ThrowIfNull(detail);
         _patientService = patientService;
         _catalogService = catalogService;
         List = list;
+        Detail = detail;
         Genders = new ReadOnlyObservableCollection<CatalogItem>(_genders);
-        NewPatientCommand = new AsyncRelayCommand(OpenRegistrationAsync, () => !IsFormOpen && !IsBusy);
+        NewPatientCommand = new AsyncRelayCommand(OpenRegistrationAsync, () => IsEntryVisible && !IsBusy);
         SaveCommand = new AsyncRelayCommand(SaveAsync, CanSave);
         CancelCommand = new RelayCommand(CancelRegistration, () => IsFormOpen);
         CloseDuplicateCuiPopupCommand = new RelayCommand(() => IsDuplicateCuiPopupOpen = false);
+        OpenDetailCommand = new AsyncRelayCommand<Patient>(OpenDetailAsync,
+            patient => patient is not null && IsEntryVisible && !IsBusy, AsyncRelayCommandOptions.AllowConcurrentExecutions);
+        BackToListCommand = new RelayCommand(BackToList, () => IsDetailOpen && !IsFormOpen && !IsBusy);
+        EditPatientCommand = new AsyncRelayCommand(OpenEditAsync,
+            () => IsDetailVisible && !IsFormOpen && !IsBusy && Detail.HasPatient);
+        Detail.PropertyChanged += (_, _) => EditPatientCommand.NotifyCanExecuteChanged();
     }
 
     public PatientListViewModel List { get; }
+    public PatientDetailViewModel Detail { get; }
+    public IAsyncRelayCommand<Patient> OpenDetailCommand { get; }
+    public IRelayCommand BackToListCommand { get; }
+    public IAsyncRelayCommand EditPatientCommand { get; }
     public ReadOnlyObservableCollection<CatalogItem> Genders { get; }
     public IAsyncRelayCommand NewPatientCommand { get; }
     public IAsyncRelayCommand SaveCommand { get; }
     public IRelayCommand CancelCommand { get; }
     public IRelayCommand CloseDuplicateCuiPopupCommand { get; }
-    public bool IsEntryVisible => !IsFormOpen;
+    public bool IsEntryVisible => !IsFormOpen && !IsDetailOpen;
+    public bool IsDetailVisible => IsDetailOpen;
+    public bool IsDetailReadOnly => IsDetailOpen && !IsFormOpen;
+    public bool IsEditing => _editingPatientId.HasValue;
+    public string FormTitle => IsEditing ? $"Editar datos · {Detail.PatientCode}" : "Nuevo paciente";
+    public bool IsDetailOpen
+    {
+        get => _isDetailOpen;
+        private set
+        {
+            if (!SetProperty(ref _isDetailOpen, value)) return;
+            OnPropertyChanged(nameof(IsEntryVisible));
+            OnPropertyChanged(nameof(IsDetailVisible));
+            OnPropertyChanged(nameof(IsDetailReadOnly));
+            NotifyStateChanged();
+        }
+    }
     public bool CanEdit => IsFormOpen && !IsBusy && Genders.Count > 0 && !IsDuplicateCuiPopupOpen;
     public bool IsSaving => IsBusy && !IsLoadingGenders;
-    public string SaveButtonText => IsSaving ? "Guardando…" : "Guardar";
+    public string SaveButtonText => IsSaving ? "Guardando…" : IsEditing ? "Guardar cambios" : "Guardar";
     public bool HasErrors => _fieldErrors.Count > 0;
     public string FormErrorMessage => HasErrors ? string.Empty : ErrorMessage;
     public event EventHandler<DataErrorsChangedEventArgs>? ErrorsChanged;
@@ -93,6 +124,8 @@ public sealed partial class PatientsViewModel : ObservableObject, INotifyDataErr
         {
             if (!SetProperty(ref _isFormOpen, value)) return;
             OnPropertyChanged(nameof(IsEntryVisible));
+            OnPropertyChanged(nameof(IsDetailVisible));
+            OnPropertyChanged(nameof(IsDetailReadOnly));
             NotifyStateChanged();
         }
     }
@@ -134,9 +167,34 @@ public sealed partial class PatientsViewModel : ObservableObject, INotifyDataErr
 
     private async Task OpenRegistrationAsync(CancellationToken cancellationToken)
     {
-        if (IsFormOpen || IsBusy) return;
+        if (!IsEntryVisible || IsBusy) return;
+        await OpenFormAsync(null, cancellationToken);
+    }
+
+    private async Task OpenEditAsync(CancellationToken cancellationToken)
+    {
+        if (!IsDetailVisible || IsFormOpen || IsBusy || Detail.Patient is null) return;
+        await OpenFormAsync(Detail.Patient, cancellationToken);
+    }
+
+    private async Task OpenFormAsync(Patient? patient, CancellationToken cancellationToken)
+    {
         List.Deactivate();
         ResetFields();
+        SetEditingPatient(patient?.Id);
+        if (patient is not null)
+        {
+            FirstName = patient.FirstName;
+            MiddleName = patient.MiddleName ?? string.Empty;
+            LastName = patient.LastName;
+            SecondLastName = patient.SecondLastName ?? string.Empty;
+            BirthDate = patient.BirthDate.ToDateTime(TimeOnly.MinValue);
+            Cui = patient.Cui ?? string.Empty;
+            Phone = patient.Phone ?? string.Empty;
+            Address = patient.Address ?? string.Empty;
+            Occupation = patient.Occupation ?? string.Empty;
+            ReferredBy = patient.ReferredBy ?? string.Empty;
+        }
         ErrorMessage = string.Empty;
         SuccessMessage = string.Empty;
         _genders.Clear();
@@ -150,6 +208,12 @@ public sealed partial class PatientsViewModel : ObservableObject, INotifyDataErr
             var genders = await _catalogService.GetActiveItemsAsync(CategoryCodes.GENDER, operation.Token);
             operation.Token.ThrowIfCancellationRequested();
             foreach (var item in genders) _genders.Add(item);
+            if (patient is not null)
+            {
+                SelectedGender = Genders.FirstOrDefault(item => item.Id == patient.GenderId);
+                if (SelectedGender is null && Genders.Count > 0)
+                    ErrorMessage = "El género actual no está activo. Selecciona uno para guardar los cambios.";
+            }
             if (Genders.Count == 0)
                 ErrorMessage = "No hay géneros activos disponibles. No es posible registrar un paciente.";
         }
@@ -191,14 +255,26 @@ public sealed partial class PatientsViewModel : ObservableObject, INotifyDataErr
         IsBusy = true;
         try
         {
-            var saved = await _patientService.CreateAsync(patient, operation.Token);
+            var editingId = _editingPatientId;
+            var saved = editingId.HasValue
+                ? await _patientService.UpdateAsync(editingId.Value, patient, operation.Token)
+                : await _patientService.CreateAsync(patient, operation.Token);
             // Un resultado confirmado es éxito aunque la cancelación se solicite tarde.
             ErrorMessage = string.Empty;
             ResetFields();
             _genders.Clear();
             IsFormOpen = false;
-            SuccessMessage = $"Paciente registrado correctamente. Código: {saved.PatientCode}.";
-            List.ShowCreatedPatient();
+            SetEditingPatient(null);
+            if (editingId.HasValue)
+            {
+                Detail.ShowPatient(saved);
+                SuccessMessage = "Datos del paciente actualizados correctamente.";
+            }
+            else
+            {
+                SuccessMessage = $"Paciente registrado correctamente. Código: {saved.PatientCode}.";
+                List.ShowCreatedPatient();
+            }
         }
         catch (ValidationException ex)
         {
@@ -212,12 +288,16 @@ public sealed partial class PatientsViewModel : ObservableObject, INotifyDataErr
         }
         catch (OperationCanceledException) when (operation.IsCancellationRequested)
         {
-            ErrorMessage = "El registro se canceló. Puedes revisar los datos e intentarlo de nuevo.";
+            ErrorMessage = "La operación se canceló. Puedes revisar los datos e intentarlo de nuevo.";
+        }
+        catch (KeyNotFoundException ex)
+        {
+            ErrorMessage = ex.Message;
         }
         catch (Exception ex)
         {
             Trace.TraceError("Error al registrar el paciente: {0}", ex);
-            ErrorMessage = "No se pudo registrar el paciente. Tus datos se conservan; intenta nuevamente.";
+            ErrorMessage = "No se pudieron guardar los datos del paciente. Tus datos se conservan; intenta nuevamente.";
         }
         finally
         {
@@ -243,7 +323,33 @@ public sealed partial class PatientsViewModel : ObservableObject, INotifyDataErr
         ErrorMessage = string.Empty;
         SuccessMessage = string.Empty;
         IsFormOpen = false;
+        SetEditingPatient(null);
+        if (!IsDetailOpen) List.Activate();
+    }
+
+    private async Task OpenDetailAsync(Patient? patient, CancellationToken cancellationToken)
+    {
+        if (patient is null || !IsEntryVisible || IsBusy) return;
+        List.Deactivate();
+        SuccessMessage = string.Empty;
+        IsDetailOpen = true;
+        await Detail.LoadAsync(patient.Id, cancellationToken);
+    }
+
+    private void BackToList()
+    {
+        if (!IsDetailOpen || IsFormOpen || IsBusy) return;
+        Detail.Deactivate();
+        IsDetailOpen = false;
         List.Activate();
+    }
+
+    private void SetEditingPatient(int? id)
+    {
+        _editingPatientId = id;
+        OnPropertyChanged(nameof(IsEditing));
+        OnPropertyChanged(nameof(FormTitle));
+        OnPropertyChanged(nameof(SaveButtonText));
     }
 
     private void ResetFields()
@@ -326,5 +432,8 @@ public sealed partial class PatientsViewModel : ObservableObject, INotifyDataErr
         NewPatientCommand.NotifyCanExecuteChanged();
         SaveCommand.NotifyCanExecuteChanged();
         CancelCommand.NotifyCanExecuteChanged();
+        OpenDetailCommand.NotifyCanExecuteChanged();
+        BackToListCommand.NotifyCanExecuteChanged();
+        EditPatientCommand.NotifyCanExecuteChanged();
     }
 }
