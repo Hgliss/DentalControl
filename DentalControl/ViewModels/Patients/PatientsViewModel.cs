@@ -43,12 +43,14 @@ public sealed partial class PatientsViewModel : ObservableObject, INotifyDataErr
     [ObservableProperty] private string _occupation = string.Empty;
     [ObservableProperty] private string _referredBy = string.Empty;
 
-    public PatientsViewModel(IPatientService patientService, ICatalogService catalogService)
+    public PatientsViewModel(IPatientService patientService, ICatalogService catalogService, PatientListViewModel list)
     {
         ArgumentNullException.ThrowIfNull(patientService);
         ArgumentNullException.ThrowIfNull(catalogService);
+        ArgumentNullException.ThrowIfNull(list);
         _patientService = patientService;
         _catalogService = catalogService;
+        List = list;
         Genders = new ReadOnlyObservableCollection<CatalogItem>(_genders);
         NewPatientCommand = new AsyncRelayCommand(OpenRegistrationAsync, () => !IsFormOpen && !IsBusy);
         SaveCommand = new AsyncRelayCommand(SaveAsync, CanSave);
@@ -56,6 +58,7 @@ public sealed partial class PatientsViewModel : ObservableObject, INotifyDataErr
         CloseDuplicateCuiPopupCommand = new RelayCommand(() => IsDuplicateCuiPopupOpen = false);
     }
 
+    public PatientListViewModel List { get; }
     public ReadOnlyObservableCollection<CatalogItem> Genders { get; }
     public IAsyncRelayCommand NewPatientCommand { get; }
     public IAsyncRelayCommand SaveCommand { get; }
@@ -132,6 +135,7 @@ public sealed partial class PatientsViewModel : ObservableObject, INotifyDataErr
     private async Task OpenRegistrationAsync(CancellationToken cancellationToken)
     {
         if (IsFormOpen || IsBusy) return;
+        List.Deactivate();
         ResetFields();
         ErrorMessage = string.Empty;
         SuccessMessage = string.Empty;
@@ -194,6 +198,7 @@ public sealed partial class PatientsViewModel : ObservableObject, INotifyDataErr
             _genders.Clear();
             IsFormOpen = false;
             SuccessMessage = $"Paciente registrado correctamente. Código: {saved.PatientCode}.";
+            List.ShowCreatedPatient();
         }
         catch (ValidationException ex)
         {
@@ -238,6 +243,7 @@ public sealed partial class PatientsViewModel : ObservableObject, INotifyDataErr
         ErrorMessage = string.Empty;
         SuccessMessage = string.Empty;
         IsFormOpen = false;
+        List.Activate();
     }
 
     private void ResetFields()

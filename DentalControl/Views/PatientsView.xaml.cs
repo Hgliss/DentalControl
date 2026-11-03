@@ -37,11 +37,16 @@ namespace DentalControl.Views
             if (!IsLoaded || DataContext is not PatientsViewModel viewModel) return;
             _viewModel = viewModel;
             _viewModel.ValidationFailed += FocusFirstInvalidField;
+            if (!_viewModel.IsFormOpen) _viewModel.List.Activate();
         }
 
         private void DetachViewModel()
         {
-            if (_viewModel is not null) _viewModel.ValidationFailed -= FocusFirstInvalidField;
+            if (_viewModel is not null)
+            {
+                _viewModel.ValidationFailed -= FocusFirstInvalidField;
+                _viewModel.List.Deactivate();
+            }
             _viewModel = null;
         }
 

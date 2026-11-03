@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Data;
 using System.Globalization;
+using System.Text;
 using DentalControl.Common;
 using DentalControl.Data.Context;
 using DentalControl.Data.Database.Common;
@@ -24,6 +25,106 @@ public sealed class PatientService(
     IUserSession userSession) : IPatientService
 {
     private const int MaxAttempts = 3;
+
+    public async Task<(IReadOnlyList<Patient> Items, int TotalCount, int PageNumber)> GetPageAsync(
+        int pageNumber = 1,
+        int pageSize = 10,
+        string? searchText = null,
+        PatientStatusFilter status = PatientStatusFilter.Active,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(pageNumber, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(pageSize, 100);
+        if (!Enum.IsDefined(status)) throw new ArgumentOutOfRangeException(nameof(status));
+        cancellationToken.ThrowIfCancellationRequested();
+        if (userSession.UserId is not int userId || userId <= 0)
+            throw new UnauthorizedAccessException("Debes iniciar sesión para consultar pacientes.");
+
+        var terms = NormalizeSearchText(searchText)
+            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
+            .Distinct(StringComparer.Ordinal).ToArray();
+
+        // Igual que al registrar: SQLite trabaja en un contexto propio fuera del hilo visual.
+        return await Task.Run(
+            () => ReadPageAsync(pageNumber, pageSize, terms, status, cancellationToken), cancellationToken);
+    }
+
+    private async Task<(IReadOnlyList<Patient> Items, int TotalCount, int PageNumber)> ReadPageAsync(
+        int pageNumber, int pageSize, string[] terms, PatientStatusFilter status, CancellationToken cancellationToken)
+    {
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await context.Database.OpenConnectionAsync(cancellationToken);
+        var connection = (SqliteConnection)context.Database.GetDbConnection();
+
+        // La función solo pertenece a esta conexión: no altera datos ni el esquema.
+        // Se aplica en el WHERE, antes de contar o limitar los resultados.
+        connection.CreateFunction<string?, string>("dental_search_normalize", NormalizeSearchText, isDeterministic: true);
+
+        cancellationToken.ThrowIfCancellationRequested();
+        // Lectura diferida: total y página comparten una instantánea sin reservar
+        // desde el inicio el bloqueo de escritura que requiere el registro.
+        await using var transaction = connection.BeginTransaction(deferred: true);
+        await using var efTransaction = await context.Database.UseTransactionAsync(transaction, cancellationToken);
+
+        var (sql, parameters) = BuildPatientPageSql(terms, status);
+        var totalCount = await context.Patients.FromSqlRaw(sql, parameters).CountAsync(cancellationToken);
+        var totalPages = totalCount == 0 ? 1 : (totalCount - 1) / pageSize + 1;
+        var effectivePage = Math.Min(pageNumber, totalPages);
+        IReadOnlyList<Patient> items = Array.Empty<Patient>();
+
+        if (totalCount > 0)
+        {
+            var pageParameters = parameters.Concat(new object[] { pageSize, (effectivePage - 1) * pageSize }).ToArray();
+            // CAST ordena el consecutivo numéricamente, también después de PAC-999999.
+            // Solo se incorporan índices de parámetros, nunca texto escrito por el usuario.
+            var pageSql = sql + " ORDER BY CAST(substr(\"patient_code\", 5) AS INTEGER), \"patient_id\"" +
+                " LIMIT {" + parameters.Length + "} OFFSET {" + (parameters.Length + 1) + "}";
+            items = await context.Patients.FromSqlRaw(pageSql, pageParameters)
+                .AsNoTracking().ToListAsync(cancellationToken);
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        await transaction.CommitAsync(cancellationToken);
+        return (items, totalCount, effectivePage);
+    }
+
+    private static (string Sql, object[] Parameters) BuildPatientPageSql(string[] terms, PatientStatusFilter status)
+    {
+        var parameters = new List<object> { EntityStatus.Active, EntityStatus.Inactive };
+        var sql = new StringBuilder("SELECT * FROM \"patient\" WHERE \"deleted_at\" IS NULL AND \"status\" IN ({0}, {1})");
+        if (status != PatientStatusFilter.All)
+        {
+            sql.Append(" AND \"status\" = {").Append(parameters.Count).Append('}');
+            parameters.Add(status == PatientStatusFilter.Active ? EntityStatus.Active : EntityStatus.Inactive);
+        }
+
+        // Cada palabra debe aparecer en los nombres, apellidos o identificadores.
+        // instr busca texto literal: % y _ no se interpretan como comodines.
+        const string searchableColumns = "coalesce(\"first_name\", '') || ' ' || coalesce(\"middle_name\", '') || ' ' || " +
+            "coalesce(\"last_name\", '') || ' ' || coalesce(\"second_last_name\", '') || ' ' || " +
+            "coalesce(\"cui\", '') || ' ' || coalesce(\"patient_code\", '')";
+        foreach (var term in terms)
+        {
+            sql.Append(" AND instr(dental_search_normalize(").Append(searchableColumns)
+                .Append("), {").Append(parameters.Count).Append("}) > 0");
+            parameters.Add(term);
+        }
+        return (sql.ToString(), parameters.ToArray());
+    }
+
+    private static string NormalizeSearchText(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+        var result = new StringBuilder();
+        foreach (var character in value.Normalize(NormalizationForm.FormD))
+        {
+            if (CharUnicodeInfo.GetUnicodeCategory(character) != UnicodeCategory.NonSpacingMark)
+                result.Append(character);
+        }
+        return result.ToString().Normalize(NormalizationForm.FormC).ToUpperInvariant();
+    }
 
     public async Task<Patient> CreateAsync(
         Patient patient, CancellationToken 

@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:converters="clr-namespace:DentalControl.Infrastructure.Converters"
              x:Name="PatientsRoot" Language="es-GT"
              mc:Ignorable="d" 
              d:DesignHeight="760" d:DesignWidth="1000">
@@ -12,6 +13,11 @@
                 <ResourceDictionary Source="../Styles/Buttons.xaml" />
             </ResourceDictionary.MergedDictionaries>
             <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+            <converters:PatientFullNameConverter x:Key="PatientFullName" />
+            <Style x:Key="PatientCellTextStyle" TargetType="TextBlock">
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            </Style>
             <Style x:Key="PatientActionButtonStyle" TargetType="Button"
                    BasedOn="{StaticResource SidebarButtonStyle}">
                 <Setter Property="MinHeight" Value="40" />
@@ -139,16 +145,163 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
         <StackPanel Grid.Row="0">
-            <Button x:Name="NewPatientButton"
-                    Content="Nuevo paciente"
-                    Command="{Binding NewPatientCommand}"
-                    Style="{StaticResource PatientPrimaryButtonStyle}"
-                    HorizontalAlignment="Left"
-                    Margin="0,0,0,16"
-                    Visibility="{Binding IsEntryVisible, Converter={StaticResource BoolToVisibility}}" />
             <TextBlock x:Name="SuccessText" Text="{Binding SuccessMessage}"
                        Style="{StaticResource PatientMessageStyle}" Foreground="#15803D" />
         </StackPanel>
+
+        <Border x:Name="PatientListCard" Grid.Row="1" Background="White" CornerRadius="12" Padding="24"
+                Visibility="{Binding IsEntryVisible, Converter={StaticResource BoolToVisibility}}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock Text="Pacientes" FontSize="24" FontWeight="SemiBold"
+                           Foreground="#2D4FA3" Margin="0,0,0,20" />
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="145" />
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <Label Content="Buscar paciente" Target="{Binding ElementName=PatientSearchInput}" />
+                        <TextBox x:Name="PatientSearchInput" Style="{StaticResource PatientTextInputStyle}"
+                                 ToolTip="Nombre, apellido, DPI / CUI o código. La búsqueda ignora tildes."
+                                 Text="{Binding List.SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <Label Content="Estado" Target="{Binding ElementName=PatientStatusInput}" />
+                        <Border Style="{StaticResource PatientRoundedFieldFrameStyle}"
+                                Tag="{Binding ElementName=PatientStatusInput}">
+                            <ComboBox x:Name="PatientStatusInput" MinHeight="32" Padding="8"
+                                      BorderThickness="0" Background="Transparent" VerticalContentAlignment="Center"
+                                      ItemsSource="{Binding List.StatusOptions}" DisplayMemberPath="Value" SelectedValuePath="Key"
+                                      SelectedValue="{Binding List.SelectedStatus, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        </Border>
+                    </StackPanel>
+                    <Button x:Name="NewPatientButton" Grid.Column="4" Content="Nuevo paciente"
+                            Command="{Binding NewPatientCommand}" Style="{StaticResource PatientPrimaryButtonStyle}"
+                            VerticalAlignment="Bottom" />
+                </Grid>
+
+                <Grid Grid.Row="2" Margin="0,20,0,20" MinHeight="180">
+                    <DataGrid x:Name="PatientTable" ItemsSource="{Binding List.Patients}"
+                              Visibility="{Binding List.HasPatients, Converter={StaticResource BoolToVisibility}}"
+                              AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" CanUserDeleteRows="False"
+                              CanUserSortColumns="False" CanUserReorderColumns="False" SelectionMode="Single"
+                              HeadersVisibility="Column" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#E2E8F0"
+                              BorderThickness="0" Background="White" RowBackground="White" AlternatingRowBackground="#F8FAFC"
+                              RowHeight="46" EnableRowVirtualization="True" EnableColumnVirtualization="True"
+                              ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto">
+                        <DataGrid.Resources>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#EFF6FF" />
+                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#1E293B" />
+                            <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="#EFF6FF" />
+                            <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="#1E293B" />
+                            <Style TargetType="DataGridColumnHeader">
+                                <Setter Property="Background" Value="#EAF0FB" />
+                                <Setter Property="Foreground" Value="#2D4FA3" />
+                                <Setter Property="FontWeight" Value="SemiBold" />
+                                <Setter Property="Padding" Value="10,12" />
+                                <Setter Property="BorderThickness" Value="0" />
+                            </Style>
+                            <Style TargetType="DataGridCell">
+                                <Setter Property="Padding" Value="10,6" />
+                                <Setter Property="BorderThickness" Value="0" />
+                                <Setter Property="VerticalContentAlignment" Value="Center" />
+                                <Style.Triggers>
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter Property="Background" Value="#EFF6FF" />
+                                        <Setter Property="Foreground" Value="#1E293B" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.Resources>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Código" Width="135" Binding="{Binding PatientCode}"
+                                                ElementStyle="{StaticResource PatientCellTextStyle}" />
+                            <DataGridTextColumn Header="Nombre completo" Width="*" MinWidth="180"
+                                                ElementStyle="{StaticResource PatientCellTextStyle}">
+                                <DataGridTextColumn.Binding>
+                                    <MultiBinding Converter="{StaticResource PatientFullName}">
+                                        <Binding Path="FirstName" />
+                                        <Binding Path="MiddleName" />
+                                        <Binding Path="LastName" />
+                                        <Binding Path="SecondLastName" />
+                                    </MultiBinding>
+                                </DataGridTextColumn.Binding>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="DPI / CUI" Width="150" Binding="{Binding Cui, TargetNullValue=—}"
+                                                ElementStyle="{StaticResource PatientCellTextStyle}" />
+                            <DataGridTextColumn Header="Teléfono" Width="125" Binding="{Binding Phone, TargetNullValue=—}"
+                                                ElementStyle="{StaticResource PatientCellTextStyle}" />
+                            <DataGridTemplateColumn Header="Estado" Width="95">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock VerticalAlignment="Center">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Text" Value="Activo" />
+                                                    <Setter Property="Foreground" Value="#15803D" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Status}" Value="I">
+                                                            <Setter Property="Text" Value="Inactivo" />
+                                                            <Setter Property="Foreground" Value="#64748B" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Acción" Width="145">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button Content="Ver expediente" IsEnabled="False" MinHeight="32" Padding="10,6"
+                                                Style="{StaticResource PatientActionButtonStyle}"
+                                                ToolTipService.ShowOnDisabled="True" ToolTip="El expediente todavía no está disponible." />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                Visibility="{Binding List.IsLoading, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="Cargando pacientes…" Foreground="#64748B" TextAlignment="Center" />
+                        <ProgressBar IsIndeterminate="True" Height="3" Width="180" Margin="0,12,0,0" Foreground="#2D4FA3" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding List.EmptyMessage}" Foreground="#64748B" TextWrapping="Wrap"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center"
+                               Visibility="{Binding List.ShowEmptyState, Converter={StaticResource BoolToVisibility}}" />
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                Visibility="{Binding List.HasLoadError, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="{Binding List.LoadErrorMessage}" Foreground="#B91C1C" TextWrapping="Wrap"
+                                   MaxWidth="400" TextAlignment="Center" />
+                        <Button Content="Reintentar" Command="{Binding List.RefreshCommand}"
+                                Style="{StaticResource PatientActionButtonStyle}" HorizontalAlignment="Center" Margin="0,16,0,0" />
+                    </StackPanel>
+                </Grid>
+                <Grid Grid.Row="3">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Button Content="Anterior" Command="{Binding List.PreviousPageCommand}"
+                            Style="{StaticResource PatientActionButtonStyle}" />
+                    <TextBlock Grid.Column="1" Text="{Binding List.PageSummary}" Foreground="#64748B" TextWrapping="Wrap"
+                               VerticalAlignment="Center" TextAlignment="Center" Margin="12,0" />
+                    <Button Grid.Column="2" Content="Siguiente" Command="{Binding List.NextPageCommand}"
+                            Style="{StaticResource PatientActionButtonStyle}" />
+                </Grid>
+            </Grid>
+        </Border>
 
         <Border x:Name="RegistrationForm" Grid.Row="1"
                 Background="White" CornerRadius="12" Padding="24" VerticalAlignment="Top"
