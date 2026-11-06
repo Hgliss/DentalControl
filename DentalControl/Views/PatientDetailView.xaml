@@ -42,6 +42,7 @@
             <DataTemplate x:Key="PatientReadOnlyTemplate">
                     <Border Background="White" CornerRadius="12" Padding="24">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel>
                             <Grid>
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="24" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0">
@@ -96,6 +97,31 @@
                                     </StackPanel>
                                 </StackPanel>
                             </Grid>
+                            <Border BorderBrush="#EAF0FB" BorderThickness="0,1,0,0" Padding="0,16,0,0" Margin="0,4,0,0">
+                                <StackPanel>
+                                    <WrapPanel HorizontalAlignment="Right">
+                                        <Button Content="Editar datos" Command="{Binding EditPatientCommand}"
+                                                Style="{StaticResource PatientActionButtonStyle}" Margin="0,0,8,0" />
+                                        <Button Content="{Binding StatusActionText}" Command="{Binding ChangePatientStatusCommand}"
+                                                Visibility="{Binding CanManagePatientStatus, Converter={StaticResource BoolToVisibility}}">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource PatientActionButtonStyle}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Detail.Patient.Status}" Value="A">
+                                                            <Setter Property="Foreground" Value="#B91C1C" />
+                                                            <Setter Property="Background" Value="#FEE2E2" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+                                    </WrapPanel>
+                                    <TextBlock Text="{Binding StatusChangeErrorMessage}" Foreground="#B91C1C"
+                                               Style="{StaticResource PatientMessageStyle}" MaxWidth="400" TextWrapping="Wrap"
+                                               HorizontalAlignment="Right" Margin="0,8,0,0" />
+                                </StackPanel>
+                            </Border>
+                            </StackPanel>
                         </ScrollViewer>
                     </Border>
                 
@@ -142,8 +168,6 @@
                         </StackPanel>
                     </WrapPanel>
                 </StackPanel>
-                <Button Grid.Column="2" Content="Editar datos" Command="{Binding EditPatientCommand}" Visibility="{Binding IsDetailReadOnly, Converter={StaticResource BoolToVisibility}}"
-                        Style="{StaticResource PatientActionButtonStyle}" VerticalAlignment="Center" Margin="16,0,0,0" />
             </Grid>
         </Border>
         <Grid Grid.Row="2" Margin="0,20,0,0">

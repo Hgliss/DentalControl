@@ -7,6 +7,7 @@ public sealed class UserSession : IUserSession
 {
     public AuthenticatedUser? User { get; private set; }
     public int? UserId => User?.Id;
+    public bool CanChangePatientStatus => User is { Id: > 0, RoleName: "Administrador" or "Doctor" };
 
     public void SetUser(AuthenticatedUser user)
     {

@@ -4,4 +4,5 @@ namespace DentalControl.Services.Interface.Authentication;
 public interface IUserSession
 {
     int? UserId { get; }
+    bool CanChangePatientStatus { get; }
 }

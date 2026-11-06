@@ -26,6 +26,60 @@ public sealed class PatientService(
 {
     private const int MaxAttempts = 3;
 
+    public async Task<Patient> ChangeStatusAsync(int patientId, string status, CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(patientId, 1);
+        if (status is not (EntityStatus.Active or EntityStatus.Inactive))
+            throw new ArgumentException("El estado debe ser activo o inactivo.", nameof(status));
+        cancellationToken.ThrowIfCancellationRequested();
+        if (userSession.UserId is not int updatedBy || !userSession.CanChangePatientStatus)
+            throw new UnauthorizedAccessException("Solo Administrador y Doctor pueden cambiar el estado de pacientes.");
+
+        return await Task.Run(async () =>
+        {
+            for (var attempt = 1; ; attempt++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    return await ChangeStatusAttemptAsync(patientId, status, updatedBy, cancellationToken);
+                }
+                catch (Exception ex) when (GetSqliteException(ex) is { SqliteErrorCode: 5 or 6 })
+                {
+                    if (attempt >= MaxAttempts) throw;
+                    await Task.Delay(TimeSpan.FromMilliseconds(100 * attempt), cancellationToken);
+                }
+            }
+        }, cancellationToken);
+    }
+
+    private async Task<Patient> ChangeStatusAttemptAsync(
+        int patientId, string status, int updatedBy, CancellationToken cancellationToken)
+    {
+        if (userSession.UserId != updatedBy || !userSession.CanChangePatientStatus)
+            throw new UnauthorizedAccessException("La sesión ya no está autorizada para cambiar el estado.");
+
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        var entity = await context.Patients.Include(patient => patient.Gender)
+            .SingleOrDefaultAsync(patient => patient.Id == patientId && patient.DeletedAt == null &&
+                (patient.Status == EntityStatus.Active || patient.Status == EntityStatus.Inactive), cancellationToken)
+            ?? throw new KeyNotFoundException("El paciente no existe o ya no está disponible.");
+
+        // Solicitar el mismo estado nuevamente no invierte el resultado ni altera su auditoría.
+        if (entity.Status != status)
+        {
+            entity.Status = status;
+            entity.UpdatedAt = DateTime.UtcNow;
+            entity.UpdatedBy = updatedBy;
+            await context.SaveChangesAsync(cancellationToken);
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        await transaction.CommitAsync(cancellationToken);
+        return entity;
+    }
+
     public async Task<Patient?> GetByIdAsync(int patientId, CancellationToken cancellationToken = default)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(patientId, 1);

@@ -4,6 +4,9 @@ namespace DentalControl.Services.Interface.Patients;
 
 public interface IPatientService
 {
+    /// <summary>Establece A o I y registra la auditoría. Requiere Administrador o Doctor.</summary>
+    Task<Patient> ChangeStatusAsync(int patientId, string status, CancellationToken cancellationToken = default);
+
     /// <summary>Consulta datos generales y género; devuelve null si no está disponible.</summary>
     Task<Patient?> GetByIdAsync(int patientId, CancellationToken cancellationToken = default);
 
